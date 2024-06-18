@@ -1,13 +1,13 @@
 import duckdb
-from IPython import InteractiveShell
 
 from ploomber_test.parse import iterate_code_chunks
+from ploomber_test.commands import run_in_container
 
 
 class CodeRunner:
-    def __init__(self, text, conn=None):
+    def __init__(self, text, python_version="3.12.2", conn=None):
         self.text = text
-        self.shell = InteractiveShell()
+        self.python_version = python_version
 
         if conn:
             self.conn = conn
@@ -15,17 +15,14 @@ class CodeRunner:
             self.conn = duckdb.connect()
 
     def run(self):
+        run_in_container(self.python_version, self.get_code())
+
+    def get_code(self):
+        python_code = []
         for code in iterate_code_chunks(self.text):
             language = code["language"]
-            print(f"Running: {code}")
-
             if language == "python":
-                execution = self.shell.run_cell(code["code"])
-                execution.raise_error()
-
-                result = execution.result
-
-                print(f"Output: {result}")
+                python_code.append(code["code"])
             elif language == "sql":
-                result = self.conn.execute(code["code"]).fetchall()
-                print(f"Output: {result}")
+                return self.conn.execute(code["code"]).fetchall()
+        return ";".join(item.replace("\n", ";").replace('"', "'") for item in python_code)
